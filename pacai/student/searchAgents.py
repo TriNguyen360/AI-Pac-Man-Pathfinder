@@ -129,39 +129,38 @@ def cornersHeuristic(state, problem):
     # walls = problem.walls  # These are the walls of the maze, as a Grid.
 
     # *** Your Code Here ***
-    corners = problem.corners  
-    walls = problem.walls      
+    # Extract the current position and visited corners from the state
+    currentPosition, visitedCorners = state
 
-    # We'll use the Manhattan distance as the heuristic for each corner,
-    # as it's an admissible heuristic on a grid where you can only move in four directions.
-    def manhattanDistance(xy1, xy2):
-        return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
+    corners = problem.corners
 
-    # Extract the location of Pacman and the corners yet to be visited from the state
-    currentPosition, unvisitedCorners = state
+    walls = problem.walls
 
-    # If there are no unvisited corners, we've reached the goal state
+    # Keep track of corners that have not been visited yet
+    unvisitedCorners = [corner for corner in corners if corner not in visitedCorners]
+
     if not unvisitedCorners:
         return 0
 
-    # Compute the Manhattan distance from the current position to each unvisited corner
-    distances = [manhattanDistance(currentPosition, corner) for corner in unvisitedCorners]
+    totalDistance = 0
 
-    # The heuristic is the distance to the nearest corner plus an estimate for the remaining corners.
-    # We take the minimum distance as our heuristic to ensure it's admissible,
-    # as the actual distance cannot be less than the distance to the nearest corner.
-    heuristic = min(distances)
+    while unvisitedCorners:
+        # Compute the distance to each unvisited corner from our current position
+        distances = [util.manhattanDistance(currentPosition, corner) for corner in unvisitedCorners]
 
-    # To improve the heuristic while keeping it admissible, we can add the distances between
-    # the remaining corners, as the path must be at least as long as the distance between the corners.
-    if len(unvisitedCorners) > 1:
-        for i in range(len(unvisitedCorners) - 1):
-            for j in range(i + 1, len(unvisitedCorners)):
-                distanceBetweenCorners = manhattanDistance(unvisitedCorners[i], unvisitedCorners[j])
-                heuristic += distanceBetweenCorners
+        # Choose the closest corner (min distance)
+        minDistance = min(distances)
 
-    return heuristic
+        # Add this distance to our total distance
+        totalDistance += minDistance
 
+        # Update our current position to be this corner
+        currentPosition = unvisitedCorners[distances.index(minDistance)]
+
+        # Remove this corner from unvisited corners
+        unvisitedCorners.remove(currentPosition)
+
+    return totalDistance
 
 def foodHeuristic(state, problem):
     """
