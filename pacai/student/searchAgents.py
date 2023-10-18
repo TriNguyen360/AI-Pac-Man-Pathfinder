@@ -7,6 +7,7 @@ Good luck and happy searching!
 
 import logging
 
+from pacai.core.directions import Directions
 from pacai.core.actions import Actions
 from pacai.core.search import heuristic
 from pacai.core.search.position import PositionSearchProblem
@@ -63,8 +64,36 @@ class CornersProblem(SearchProblem):
             if not startingGameState.hasFood(*corner):
                 logging.warning('Warning: no food in corner ' + str(corner))
 
-        # *** Your Code Here ***
-        raise NotImplementedError()
+    # *** Your Code Here ***
+    def startingState(self):
+        # We will use a tuple: (Pac-Man's position, (corner1 visited, corner2 visited, ...))
+        return (self.startingPosition, (False, False, False, False))
+
+    def isGoal(self, state):
+        # Check if all corners are visited (all values in the second part of the tuple are True).
+        return all(state[1])
+
+    def successorStates(self, state):
+        successors = []
+        for action in Directions.CARDINAL:
+            # Calculate new position after the action.
+            x, y = state[0]
+            dx, dy = Actions.directionToVector(action)
+            nextx, nexty = int(x + dx), int(y + dy)
+
+            if not self.walls[nextx][nexty]:
+                # Create a new state.
+                newPos = (nextx, nexty)
+                cornersVisited = list(state[1])
+                if newPos in self.corners:
+                    cornerIndex = self.corners.index(newPos)
+                    cornersVisited[cornerIndex] = True
+
+                newState = (newPos, tuple(cornersVisited))
+                cost = 1  # Update this if there are actions with different costs.
+                successors.append((newState, action, cost))
+
+        return successors
 
     def actionsCost(self, actions):
         """
@@ -100,7 +129,39 @@ def cornersHeuristic(state, problem):
     # walls = problem.walls  # These are the walls of the maze, as a Grid.
 
     # *** Your Code Here ***
-    return heuristic.null(state, problem)  # Default to trivial solution
+    corners = problem.corners  
+    walls = problem.walls      
+
+    # We'll use the Manhattan distance as the heuristic for each corner,
+    # as it's an admissible heuristic on a grid where you can only move in four directions.
+    def manhattanDistance(xy1, xy2):
+        return abs(xy1[0] - xy2[0]) + abs(xy1[1] - xy2[1])
+
+    # Extract the location of Pacman and the corners yet to be visited from the state
+    currentPosition, unvisitedCorners = state
+
+    # If there are no unvisited corners, we've reached the goal state
+    if not unvisitedCorners:
+        return 0
+
+    # Compute the Manhattan distance from the current position to each unvisited corner
+    distances = [manhattanDistance(currentPosition, corner) for corner in unvisitedCorners]
+
+    # The heuristic is the distance to the nearest corner plus an estimate for the remaining corners.
+    # We take the minimum distance as our heuristic to ensure it's admissible,
+    # as the actual distance cannot be less than the distance to the nearest corner.
+    heuristic = min(distances)
+
+    # To improve the heuristic while keeping it admissible, we can add the distances between
+    # the remaining corners, as the path must be at least as long as the distance between the corners.
+    if len(unvisitedCorners) > 1:
+        for i in range(len(unvisitedCorners) - 1):
+            for j in range(i + 1, len(unvisitedCorners)):
+                distanceBetweenCorners = manhattanDistance(unvisitedCorners[i], unvisitedCorners[j])
+                heuristic += distanceBetweenCorners
+
+    return heuristic
+
 
 def foodHeuristic(state, problem):
     """
