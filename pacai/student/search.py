@@ -25,16 +25,15 @@ def depthFirstSearch(problem):
     # *** Your Code Here ***
     # Initialize fringe and visited set
     fringe = Stack()
-    visited = set()  
+    visited = set()
 
-    start_state = problem.startingState()  
+    start_state = problem.startingState()
     fringe.push((start_state, []))
     visited.add(start_state)  # Make sure start state is visited
 
     while not fringe.isEmpty():
         state, actions = fringe.pop()
 
-        
         if problem.isGoal(state):
             return actions
 
@@ -57,17 +56,14 @@ def breadthFirstSearch(problem):
     # Initialize fringe as a Queue and visited set
     fringe = Queue()
     visited = set()
-
     
     start_state = problem.startingState()
     fringe.push((start_state, []))
-    visited.add(start_state)  
+    visited.add(start_state)
 
-    
     while not fringe.isEmpty():
         state, actions = fringe.pop()
 
-        
         if problem.isGoal(state):
             return actions
 
@@ -87,19 +83,17 @@ def uniformCostSearch(problem):
     """
 
     # *** Your Code Here ***
-    #Initialize fringe as a priority queue and visited set
+    # Initialize fringe as a priority queue and visited set
     fringe = PriorityQueue()
     visited = set()
 
     start_state = problem.startingState()
     fringe.push((start_state, []), 0)  # The priority here is 0
     visited.add(start_state)  # Mark the start state as visited
-
     
     while not fringe.isEmpty():
         state, actions = fringe.pop()
 
-        
         if problem.isGoal(state):
             return actions
 
@@ -122,7 +116,7 @@ def aStarSearch(problem, heuristic):
     """
 
     # *** Your Code Here ***
-        # Initialize the fringe as a priority queue and the visited set
+    # Initialize the fringe as a priority queue and the visited set
     fringe = PriorityQueue()
     visited = set()
 

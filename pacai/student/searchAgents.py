@@ -7,9 +7,10 @@ Good luck and happy searching!
 
 import logging
 
+from .search import breadthFirstSearch
+from pacai.core import distance
 from pacai.core.directions import Directions
 from pacai.core.actions import Actions
-from pacai.core.search import heuristic
 from pacai.core.search.position import PositionSearchProblem
 from pacai.core.search.problem import SearchProblem
 from pacai.agents.base import BaseAgent
@@ -66,17 +67,14 @@ class CornersProblem(SearchProblem):
 
     # *** Your Code Here ***
     def startingState(self):
-        # We will use a tuple: (Pac-Man's position, (corner1 visited, corner2 visited, ...))
         return (self.startingPosition, (False, False, False, False))
 
     def isGoal(self, state):
-        # Check if all corners are visited (all values in the second part of the tuple are True).
         return all(state[1])
 
     def successorStates(self, state):
         successors = []
         for action in Directions.CARDINAL:
-            # Calculate new position after the action.
             x, y = state[0]
             dx, dy = Actions.directionToVector(action)
             nextx, nexty = int(x + dx), int(y + dy)
@@ -134,8 +132,6 @@ def cornersHeuristic(state, problem):
 
     corners = problem.corners
 
-    walls = problem.walls
-
     # Keep track of corners that have not been visited yet
     unvisitedCorners = [corner for corner in corners if corner not in visitedCorners]
 
@@ -146,18 +142,14 @@ def cornersHeuristic(state, problem):
 
     while unvisitedCorners:
         # Compute the distance to each unvisited corner from our current position
-        distances = [util.manhattanDistance(currentPosition, corner) for corner in unvisitedCorners]
+        distances = [distance.manhattan(currentPosition, corner) for corner in unvisitedCorners]
 
-        # Choose the closest corner (min distance)
         minDistance = min(distances)
 
-        # Add this distance to our total distance
         totalDistance += minDistance
 
-        # Update our current position to be this corner
         currentPosition = unvisitedCorners[distances.index(minDistance)]
 
-        # Remove this corner from unvisited corners
         unvisitedCorners.remove(currentPosition)
 
     return totalDistance
@@ -194,7 +186,47 @@ def foodHeuristic(state, problem):
     position, foodGrid = state
 
     # *** Your Code Here ***
-    return heuristic.null(state, problem)  # Default to the null heuristic.
+    position, foodGrid = state
+    foodList = foodGrid.asList()
+
+    if not foodList:
+        return 0
+
+    distances = problem.heuristicInfo.get('distances')
+    if distances is None:
+        distances = {}
+        problem.heuristicInfo['distances'] = distances
+
+    def getDistance(point1, point2):
+        if (point1, point2) in distances:
+            return distances[(point1, point2)]
+        else:
+            dist = distance.maze(point1, point2, problem.startingGameState)
+            distances[(point1, point2)] = dist
+            distances[(point2, point1)] = dist  # distances are symmetric
+            return dist
+
+    nodes = foodList + [position]
+    mst_value = 0
+    cheapest_edge = {node: (None, float('inf')) for node in nodes}
+    cheapest_edge[position] = (None, 0)  # starting node
+    while nodes:
+        # Find the node with the currently cheapest edge
+        current = min(nodes, key=lambda node: cheapest_edge[node][1])
+        nodes.remove(current)
+
+        # Add the cheapest edge's value to the total MST value
+        mst_value += cheapest_edge[current][1]
+
+        # Update the cheapest edges of the remaining nodes
+        for node in nodes:
+            dist = getDistance(current, node)
+            if dist < cheapest_edge[node][1]:
+                cheapest_edge[node] = (current, dist)
+
+    # The total weight of the MST is our heuristic value
+    return mst_value
+
 
 class ClosestDotSearchAgent(SearchAgent):
     """
@@ -236,7 +268,9 @@ class ClosestDotSearchAgent(SearchAgent):
         # problem = AnyFoodSearchProblem(gameState)
 
         # *** Your Code Here ***
-        raise NotImplementedError()
+        problem = AnyFoodSearchProblem(gameState)
+
+        return breadthFirstSearch(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
