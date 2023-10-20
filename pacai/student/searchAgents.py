@@ -192,41 +192,19 @@ def foodHeuristic(state, problem):
     if not foodList:
         return 0
 
-    distances = problem.heuristicInfo.get('distances')
-    if distances is None:
-        distances = {}
-        problem.heuristicInfo['distances'] = distances
+    distances = [distance.manhattan(position, food) for food in foodList]
 
-    def getDistance(point1, point2):
-        if (point1, point2) in distances:
-            return distances[(point1, point2)]
-        else:
-            dist = distance.maze(point1, point2, problem.startingGameState)
-            distances[(point1, point2)] = dist
-            distances[(point2, point1)] = dist  # distances are symmetric
-            return dist
+    close_food = min(distances)
 
-    nodes = foodList + [position]
-    mst_value = 0
-    cheapest_edge = {node: (None, float('inf')) for node in nodes}
-    cheapest_edge[position] = (None, 0)  # starting node
-    while nodes:
-        # Find the node with the currently cheapest edge
-        current = min(nodes, key=lambda node: cheapest_edge[node][1])
-        nodes.remove(current)
+    maxfood = 0
 
-        # Add the cheapest edge's value to the total MST value
-        mst_value += cheapest_edge[current][1]
+    for i in range(len(foodList)):
+        for j in range(i + 1, len(foodList)):
+            distancess = distance.manhattan(foodList[i], foodList[j])
+            if distancess > maxfood:
+                maxfood = distancess  
 
-        # Update the cheapest edges of the remaining nodes
-        for node in nodes:
-            dist = getDistance(current, node)
-            if dist < cheapest_edge[node][1]:
-                cheapest_edge[node] = (current, dist)
-
-    # The total weight of the MST is our heuristic value
-    return mst_value
-
+    return close_food + maxfood
 
 class ClosestDotSearchAgent(SearchAgent):
     """
@@ -298,6 +276,10 @@ class AnyFoodSearchProblem(PositionSearchProblem):
 
         # Store the food for later reference.
         self.food = gameState.getFood()
+
+    def isGoal(self, state):
+        x, y = state
+        return self.food[x][y]
 
 class ApproximateSearchAgent(BaseAgent):
     """
