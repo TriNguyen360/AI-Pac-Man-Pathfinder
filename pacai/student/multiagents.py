@@ -3,6 +3,9 @@ import random
 from pacai.agents.base import BaseAgent
 from pacai.agents.search.multiagent import MultiAgentSearchAgent
 
+from pacai.core import distance
+from pacai.core.directions import Directions
+
 class ReflexAgent(BaseAgent):
     """
     A reflex agent chooses an action at each choice point by examining
@@ -50,15 +53,36 @@ class ReflexAgent(BaseAgent):
 
         successorGameState = currentGameState.generatePacmanSuccessor(action)
 
-        # Useful information you can extract.
-        # newPosition = successorGameState.getPacmanPosition()
-        # oldFood = currentGameState.getFood()
-        # newGhostStates = successorGameState.getGhostStates()
-        # newScaredTimes = [ghostState.getScaredTimer() for ghostState in newGhostStates]
+        # Extract relevant information from the game state.
+        newPosition = successorGameState.getPacmanPosition()
+        oldFood = currentGameState.getFood()
+        newGhostStates = successorGameState.getGhostStates()
+        newScaredTimes = [ghostState.getScaredTimer() for ghostState in newGhostStates]
 
-        # *** Your Code Here ***
+        score = successorGameState.getScore()
 
-        return successorGameState.getScore()
+        # Consider distance to the nearest food.
+        foodDistances = [distance.manhattan(newPosition, food) for food in oldFood.asList()]
+        if foodDistances:
+            closestFoodDistance = min(foodDistances)
+            if closestFoodDistance == 0:
+                score += 1000
+            else:
+                score += 1.0 / closestFoodDistance
+
+        # Consider distance to the ghosts.
+        for ghostState, scaredTime in zip(newGhostStates, newScaredTimes):
+            ghostDistance = distance.manhattan(newPosition, ghostState.getPosition())
+            if ghostDistance <= 1 and scaredTime == 0:
+                score -= 1000
+            elif ghostDistance <= 1 and scaredTime > 0:
+                score += 500
+
+        # Consider the number of remaining food pellets.
+        remainingFood = len(oldFood.asList())
+        score -= remainingFood * 10
+
+        return score
 
 class MinimaxAgent(MultiAgentSearchAgent):
     """
@@ -90,6 +114,44 @@ class MinimaxAgent(MultiAgentSearchAgent):
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
 
+    def getAction(self, gameState):
+        # Get all possible actions for Pacman.
+        actions = gameState.getLegalActions(0)
+        if Directions.STOP in actions:
+            actions.remove(Directions.STOP)
+
+        # Compute Minimax value.
+        values = [self.minimax(gameState.generateSuccessor(0, action), 1, 0) for action in actions]
+
+        # Return the action with the maximum Minimax value.
+        return actions[values.index(max(values))]
+
+    def minimax(self, gameState, currentDepth, agentIndex):
+        if gameState.isWin() or gameState.isLose() or currentDepth == self.getTreeDepth():
+            return self.getEvaluationFunction()(gameState)
+
+        # maximizing agent
+        if agentIndex == 0:
+            nextAgent = 1
+            newDepth = currentDepth
+            values = [self.minimax(gameState.generateSuccessor(agentIndex, action),
+            newDepth, nextAgent)
+            for action in gameState.getLegalActions(agentIndex)]
+            return max(values)
+
+        # minimizing agent
+        else:
+            nextAgent = agentIndex + 1
+            if agentIndex == gameState.getNumAgents() - 1:
+                nextAgent = 0
+                newDepth = currentDepth + 1
+            else:
+                newDepth = currentDepth
+            values = [self.minimax(gameState.generateSuccessor(agentIndex, action),
+            newDepth, nextAgent)
+            for action in gameState.getLegalActions(agentIndex)]
+            return min(values)
+
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
     A minimax agent with alpha-beta pruning.
@@ -104,6 +166,60 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
 
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
+
+    def getAction(self, gameState):
+        alpha = float("-inf")
+        beta = float("inf")
+
+        actions = gameState.getLegalActions(0)
+        if Directions.STOP in actions:
+            actions.remove(Directions.STOP)
+
+        bestAction = None
+        value = float("-inf")
+
+        # For each action, compute its Minimax value with alpha-beta pruning.
+        for action in actions:
+            newValue = self.alphabeta(gameState.generateSuccessor(0, action), 1, 0, alpha, beta)
+            if newValue > value:
+                value = newValue
+                bestAction = action
+            alpha = max(alpha, value)
+        
+        return bestAction
+
+    def alphabeta(self, gameState, currentDepth, agentIndex, alpha, beta):
+        if gameState.isWin() or gameState.isLose() or currentDepth == self.getTreeDepth():
+            return self.getEvaluationFunction()(gameState)
+
+        # maximizing agent
+        if agentIndex == 0:
+            value = float("-inf")
+            for action in gameState.getLegalActions(agentIndex):
+                value = max(value, self.alphabeta(gameState.generateSuccessor(agentIndex, action),
+                currentDepth, 1, alpha, beta))
+                if value > beta:
+                    return value
+                alpha = max(alpha, value)
+            return value
+
+        # minimizing agent
+        else:
+            value = float("inf")
+            nextAgent = agentIndex + 1
+            if agentIndex == gameState.getNumAgents() - 1:
+                nextAgent = 0
+                newDepth = currentDepth + 1
+            else:
+                newDepth = currentDepth
+
+            for action in gameState.getLegalActions(agentIndex):
+                value = min(value, self.alphabeta(gameState.generateSuccessor(agentIndex, action),
+                newDepth, nextAgent, alpha, beta))
+                if value < alpha:
+                    return value
+                beta = min(beta, value)
+            return value
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
@@ -121,6 +237,45 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
 
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
+
+    def getAction(self, gameState):
+        def expectimax(state, depth, agentIndex):
+            if state.isWin() or state.isLose() or depth == self.getTreeDepth():
+                return self.getEvaluationFunction()(state)
+            
+            numAgents = state.getNumAgents()
+            
+            # maximizing agent
+            if agentIndex == 0:
+                maxVal = float('-inf')
+                for action in state.getLegalActions(agentIndex):
+                    successor = state.generateSuccessor(agentIndex, action)
+                    maxVal = max(maxVal, expectimax(successor, depth, 1))
+                return maxVal
+            
+            # expectation agent
+            else:
+                expectedVal = 0
+                actions = state.getLegalActions(agentIndex)
+                prob = 1.0 / len(actions)
+                for action in actions:
+                    successor = state.generateSuccessor(agentIndex, action)
+                    if agentIndex == numAgents - 1:
+                        expectedVal += prob * expectimax(successor, depth + 1, 0)
+                    else:
+                        expectedVal += prob * expectimax(successor, depth, agentIndex + 1)
+                return expectedVal
+        
+        # expectimax search
+        bestAction = Directions.STOP
+        maxVal = float('-inf')
+        for action in gameState.getLegalActions(0):
+            successor = gameState.generateSuccessor(0, action)
+            value = expectimax(successor, 0, 1)
+            if value > maxVal:
+                maxVal = value
+                bestAction = action
+        return bestAction
 
 def betterEvaluationFunction(currentGameState):
     """
