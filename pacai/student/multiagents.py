@@ -1,4 +1,5 @@
 import random
+import math
 
 from pacai.agents.base import BaseAgent
 from pacai.agents.search.multiagent import MultiAgentSearchAgent
@@ -132,25 +133,31 @@ class MinimaxAgent(MultiAgentSearchAgent):
 
         # maximizing agent
         if agentIndex == 0:
-            nextAgent = 1
-            newDepth = currentDepth
-            values = [self.minimax(gameState.generateSuccessor(agentIndex, action),
-            newDepth, nextAgent)
-            for action in gameState.getLegalActions(agentIndex)]
-            return max(values)
+            return self.max_value(gameState, currentDepth)
 
         # minimizing agent
         else:
-            nextAgent = agentIndex + 1
-            if agentIndex == gameState.getNumAgents() - 1:
-                nextAgent = 0
-                newDepth = currentDepth + 1
-            else:
-                newDepth = currentDepth
-            values = [self.minimax(gameState.generateSuccessor(agentIndex, action),
-            newDepth, nextAgent)
-            for action in gameState.getLegalActions(agentIndex)]
-            return min(values)
+            return self.min_value(gameState, currentDepth, agentIndex)
+
+    def max_value(self, gameState, currentDepth):
+        v = -math.inf
+        actions = gameState.getLegalActions(0)
+        for action in actions:
+            successorState = gameState.generateSuccessor(0, action)
+            v = max(v, self.minimax(successorState, currentDepth, 1))
+        return v
+
+    def min_value(self, gameState, currentDepth, agentIndex):
+        v = math.inf
+        actions = gameState.getLegalActions(agentIndex)
+        nextAgent = agentIndex + 1 if agentIndex < gameState.getNumAgents() - 1 else 0
+        newDepth = currentDepth + 1 if nextAgent == 0 else currentDepth
+
+        for action in actions:
+            successorState = gameState.generateSuccessor(agentIndex, action)
+            v = min(v, self.minimax(successorState, newDepth, nextAgent))
+        return v
+
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
@@ -282,9 +289,48 @@ def betterEvaluationFunction(currentGameState):
     Your extreme ghost-hunting, pellet-nabbing, food-gobbling, unstoppable evaluation function.
 
     DESCRIPTION: <write something here so we know what you did>
+    My evaluation function considers the distance to the nearest
+    food (rewarding closer food), the count of remaining food
+    (encouraging food consumption), the proximity to non-scared
+    ghosts (penalizing close encounters), the number of scared
+    ghosts (rewarding the opportunity to chase them), and the
+    distance to the closest power capsule (incentivizing
+    strategic power-up collection). The function takes these
+    factors to encourage a playstyle that is aggressive when
+    safe and cautious when in danger.
+
     """
 
-    return currentGameState.getScore()
+    # Initial score
+    score = currentGameState.getScore()
+    
+    # Distance to the closest food
+    foodDistances = [distance.manhattan(currentGameState.getPacmanPosition(), food)
+            for food in currentGameState.getFood().asList()]
+    if len(foodDistances):
+        closestFoodDistance = min(foodDistances)
+        score += 1.0 / closestFoodDistance
+    
+    # Number of remaining food pellets
+    score -= len(currentGameState.getFood().asList())
+
+    # Distance to the closest ghost
+    ghostStates = currentGameState.getGhostStates()
+    distancesToGhosts = [distance.manhattan(currentGameState.getPacmanPosition(),
+    ghost.getPosition()) for ghost in ghostStates if ghost._scaredTimer == 0]
+    if distancesToGhosts:
+        score -= min(distancesToGhosts)
+    
+    # Number of scared ghosts
+    score += sum([1 for ghost in ghostStates if ghost._scaredTimer > 0])
+
+    # Distance to the closest capsule
+    capsuleDistances = [distance.manhattan(currentGameState.getPacmanPosition(),
+    capsule) for capsule in currentGameState.getCapsules()]
+    if len(capsuleDistances):
+        score += 2.0 / min(capsuleDistances)
+
+    return score
 
 class ContestAgent(MultiAgentSearchAgent):
     """
