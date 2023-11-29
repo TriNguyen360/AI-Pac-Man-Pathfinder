@@ -1,139 +1,92 @@
 from pacai.agents.capture.capture import CaptureAgent
 import random
-from pacai.util import reflection
 
-class AlphaBetaAgent(CaptureAgent):
+class OffensiveAgent(CaptureAgent):
+    def getSuccessor(self, gameState, action):
+        """
+        Finds the next successor (game state) after an action.
+        """
+        successor = gameState.generateSuccessor(self.index, action)
+        return successor
+    
     def chooseAction(self, gameState):
-        """
-        Choose an action using alpha-beta pruning.
-        """
-        return self.alphaBetaSearch(gameState, depth=3)
-
-    def alphaBetaSearch(self, gameState, depth):
-        def minValue(gameState, alpha, beta, depth, agentIndex):
-            if gameState.isOver() or depth == 0:
-                return self.evaluationFunction(gameState)
-            
-            value = float("inf")
-            for action in gameState.getLegalActions(agentIndex):
-                successor = gameState.generateSuccessor(agentIndex, action)
-                value = min(value, maxValue(successor, alpha, beta, depth, agentIndex + 1))
-                if value < alpha:
-                    return value
-                beta = min(beta, value)
-            return value
-
-        def maxValue(gameState, alpha, beta, depth, agentIndex):
-            if gameState.isOver() or depth == 0:
-                return self.evaluationFunction(gameState)
-
-            value = float("-inf")
-            for action in gameState.getLegalActions(agentIndex):
-                successor = gameState.generateSuccessor(agentIndex, action)
-                value = max(value, minValue(successor, alpha, beta, depth - 1, agentIndex + 1))
-                if value > beta:
-                    return value
-                alpha = max(alpha, value)
-            return value
-
-        alpha = float("-inf")
-        beta = float("inf")
+        actions = gameState.getLegalActions(self.index)
         bestAction = None
-        bestValue = float("-inf")
+        bestScore = float('-inf')
 
-        for action in gameState.getLegalActions(self.index):
-            value = minValue(gameState.generateSuccessor(self.index, action), alpha, beta, depth, self.index + 1)
-            if value > bestValue:
-                bestValue = value
+        for action in actions:
+            successor = self.getSuccessor(gameState, action)
+            score = self.evaluateOffensiveSuccessor(successor)
+            if score > bestScore:
+                bestScore = score
                 bestAction = action
-            alpha = max(alpha, bestValue)
+        return bestAction
+
+    def evaluateOffensiveSuccessor(self, successor):
+        myPos = successor.getAgentState(self.index).getPosition()
+        foodList = self.getFood(successor).asList()
+        foodDistance = min([self.getMazeDistance(myPos, food) for food in foodList], default=0)
+
+        # Consider nearby food density
+        nearbyFoodCount = sum(1 for food in foodList if self.getMazeDistance(myPos, food) < 5)
+
+        # Consider ghost proximity
+        ghostDistances = [self.getMazeDistance(myPos, successor.getAgentState(ghost).getPosition())
+                          for ghost in self.getOpponents(successor)
+                          if not successor.getAgentState(ghost).isPacman()]
+        ghostDistance = min(ghostDistances, default=float('inf'))
+
+        score = -2 * foodDistance + 2 * nearbyFoodCount
+        if ghostDistance < 5:  # Avoid close ghosts
+            score -= 20 / ghostDistance
+        return score
+class DefensiveAgent(CaptureAgent):
+    def getSuccessor(self, gameState, action):
+        """
+        Finds the next successor (game state) after an action.
+        """
+        successor = gameState.generateSuccessor(self.index, action)
+        return successor
+    def chooseAction(self, gameState):
+        actions = gameState.getLegalActions(self.index)
+        bestAction = None
+        bestScore = float('-inf')
+
+        for action in actions:
+            successor = self.getSuccessor(gameState, action)
+            score = self.evaluateDefensiveSuccessor(successor)
+            if score > bestScore:
+                bestScore = score
+                bestAction = action
 
         return bestAction
 
-    def evaluationFunction(self, gameState):
+    def evaluateDefensiveSuccessor(self, successor):
         """
-        Base evaluation function, which should be overridden by subclasses.
+        Evaluate the successor state for defensive strategy.
         """
-        raise NotImplementedError("This method should be overridden by a subclass")
-    
-
-class OffensiveAlphaBetaAgent(AlphaBetaAgent):
-    def evaluationFunction(self, gameState):
-        return self.offensiveEvaluationFunction(gameState)
-
-    def offensiveEvaluationFunction(self, gameState):
-        """
-        Custom evaluation for offensive strategy.
-        """
-        foodList = self.getFood(gameState).asList()
-        capsules = self.getCapsules(gameState)
-        myState = gameState.getAgentState(self.index)
-        myPos = myState.getPosition()
-
-        # Score based on remaining food
-        score = -len(foodList)
-
-        # Distance to the closest food
-        if len(foodList) > 0:
-            minFoodDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-            score -= 2 * minFoodDistance
-
-        # Consider power capsules if there are any
-        if len(capsules) > 0:
-            minCapsuleDistance = min([self.getMazeDistance(myPos, capsule) for capsule in capsules])
-            score -= 2 * minCapsuleDistance
-
-        # Avoid ghosts if they are close
-        ghostDistances = [self.getMazeDistance(myPos, gameState.getAgentState(ghost).getPosition()) for ghost in self.getOpponents(gameState) if not gameState.getAgentState(ghost).isPacman()]
-        for d in ghostDistances:
-            if d < 5:  # if a ghost is too close
-                score -= 5 * (5 - d)
-
+        myPos = successor.getAgentState(self.index).getPosition()
+        invaders = [successor.getAgentState(i) for i in self.getOpponents(successor)
+                    if successor.getAgentState(i).isPacman() and successor.getAgentState(i).getPosition() is not None]
+        foodList = self.getFoodYouAreDefending(successor).asList()
+        
+        # Calculate score
+        score = 0
+        if invaders:
+            invaderDistances = [self.getMazeDistance(myPos, invader.getPosition()) for invader in invaders]
+            score -= min(invaderDistances)  # Chase invaders
+        else:
+            foodDistance = min([self.getMazeDistance(myPos, food) for food in foodList], default=0)
+            score -= foodDistance  # Patrol food
         return score
 
-class DefensiveAlphaBetaAgent(AlphaBetaAgent):
-    def evaluationFunction(self, gameState):
-        return self.defensiveEvaluationFunction(gameState)
-
-    def defensiveEvaluationFunction(self, gameState):
-        """
-        Custom evaluation for defensive strategy.
-        """
-        myState = gameState.getAgentState(self.index)
-        myPos = myState.getPosition()
-        invaders = [gameState.getAgentState(i) for i in self.getOpponents(gameState) if gameState.getAgentState(i).isPacman() and gameState.getAgentState(i).getPosition() != None]
-        numInvaders = len(invaders)
-
-        # Score based on number of invaders
-        score = -100 * numInvaders
-
-        # Distance to the closest invader
-        if numInvaders > 0:
-            dists = [self.getMazeDistance(myPos, invader.getPosition()) for invader in invaders]
-            score -= 2 * min(dists)
-
-        # Protect remaining food
-        foodList = self.getFoodYouAreDefending(gameState).asList()
-        if len(foodList) > 0:
-            minFoodDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
-            score -= minFoodDistance
-
-        return score
 
 def createTeam(firstIndex, secondIndex, isRed,
-        first = 'pacai.student.myTeam.OffensiveAlphaBetaAgent',
-        second = 'pacai.student.myTeam.DefensiveAlphaBetaAgent'):
+               first='pacai.student.myTeam.OffensiveAgent',
+               second='pacai.student.myTeam.DefensiveAgent'):
     """
-    This function should return a list of two agents that will form the capture team,
-    initialized using firstIndex and secondIndex as their agent indexed.
-    isRed is True if the red team is being created,
-    and will be False if the blue team is being created.
+    This function returns a list of two agents that will form the capture team.
     """
-
-    firstAgent = reflection.qualifiedImport(first)
-    secondAgent = reflection.qualifiedImport(second)
-
-    return [
-        firstAgent(firstIndex),
-        secondAgent(secondIndex),
-    ]
+    firstAgent = OffensiveAgent(firstIndex)
+    secondAgent = DefensiveAgent(secondIndex)
+    return [firstAgent, secondAgent]
