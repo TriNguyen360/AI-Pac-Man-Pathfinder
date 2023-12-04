@@ -57,7 +57,7 @@ class CustomAgent(CaptureAgent):
         super().registerInitialState(gameState)
 
         self.generateGridPoints(gameState)
-        self.findDeadEnd(self.gridP)  
+        self.findDeadEnd(self.gridP)
         self.updateChokePoints(self.deadends, gameState)
         self.food = gameState.getFood().asList()
 
@@ -135,18 +135,18 @@ class CustomAgent(CaptureAgent):
             initial_food = gameState.hasFood(*d)
             self._dfs(d, None, self.gridP, [], initial_food, gameState, visitedList)
 
-    def getPositionFromAction(self, position, action):    
-            x, y = position
-            if action == 'North':
-                return (x, y + 1)
-            elif action == 'South':
-                return (x, y - 1)
-            elif action == 'West':
-                return (x - 1, y)
-            elif action == 'East':
-                return (x + 1, y)
-            elif action == 'Stop':
-                return position
+    def getPositionFromAction(self, position, action):
+        x, y = position
+        if action == 'North':
+            return (x, y + 1)
+        elif action == 'South':
+            return (x, y - 1)
+        elif action == 'West':
+            return (x - 1, y)
+        elif action == 'East':
+            return (x + 1, y)
+        elif action == 'Stop':
+            return position
 
     def generateGridPoints(self, gameState):
         walls = gameState.getWalls().asList()
@@ -230,8 +230,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent, CustomAgent):
     def getWeights(self, gameState, action):
     
         return {
-            'successorScore': 100,
-            'distanceToFood': -1,
+            'successorScore': 75,
+            'distanceToFood': -0.75,
             'chokepoint': 0.2,
             'distanceToGhost': -2
         }
@@ -314,8 +314,8 @@ class DefensiveReflexAgent(ReflexCaptureAgent, CustomAgent):
             'numInvaders': -1000,
             'onDefense': 100,
             'invaderDistance': -10,
-            'stop': -100,
-            'reverse': -0.5,
+            'stop': -95,
+            'reverse': -0.45,
             'defendMid': 10,
             'defendMidTop': 0,
             'defendMidBot': 0,
